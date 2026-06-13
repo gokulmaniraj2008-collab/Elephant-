@@ -127,7 +127,7 @@
     let fightInterval = null, fightActive = false, loaded = 0;
 
     const START_X = 2.0;   // resting / walk distance
-    const FIGHT_X = 0.85;  // closing distance for melee range
+    const FIGHT_X = 1.15;  // closing distance for melee range (avoids body overlap)
     let target1 = -START_X, target2 = START_X;
 
     function loadElephant(side) {
