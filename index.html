@@ -14,33 +14,31 @@
       position: absolute; top: 12px; left: 50%;
       transform: translateX(-50%);
       color: #fff; background: rgba(0,0,0,0.6);
-      padding: 6px 16px; border-radius: 20px; font-size: 14px;
+      padding: 6px 18px; border-radius: 20px; font-size: 14px;
       pointer-events: none; white-space: nowrap; z-index: 10;
     }
 
     #status {
-      position: absolute; top: 50%; left: 50%;
+      position: absolute; top: 42%; left: 50%;
       transform: translate(-50%, -50%);
-      color: #fff; font-size: 28px; font-weight: bold;
+      color: #fff; font-size: 30px; font-weight: bold;
       text-shadow: 0 0 20px rgba(255,100,0,0.9);
       pointer-events: none; z-index: 10;
       opacity: 0; transition: opacity 0.3s;
       text-align: center;
     }
 
-    /* HP bars */
     #hp-bars {
-      position: absolute; top: 50px; left: 0; right: 0;
+      position: absolute; top: 48px; left: 0; right: 0;
       display: flex; justify-content: space-between;
-      padding: 0 16px; z-index: 10; pointer-events: none;
+      padding: 0 12px; z-index: 10; pointer-events: none;
     }
-    .hp-wrap { width: 42%; }
+    .hp-wrap { width: 44%; }
     .hp-label { color: #ccc; font-size: 11px; margin-bottom: 3px; }
     .hp-bar-bg { background: rgba(255,255,255,0.15); border-radius: 6px; height: 10px; overflow: hidden; }
     .hp-bar { height: 100%; border-radius: 6px; transition: width 0.4s; }
     #hp1-bar { background: #4caf50; width: 100%; }
     #hp2-bar { background: #f44336; width: 100%; }
-    .hp-wrap:last-child { text-align: right; }
     .hp-wrap:last-child .hp-label { text-align: right; }
 
     #loading {
@@ -49,10 +47,9 @@
       color: white; font-size: 20px; text-align: center; z-index: 20;
     }
 
-    /* Bottom controls */
     #controls {
       background: rgba(0,0,0,0.85);
-      padding: 10px 12px;
+      padding: 12px;
       display: flex;
       gap: 10px;
       justify-content: center;
@@ -60,14 +57,14 @@
     }
     .btn {
       border: none; border-radius: 24px;
-      padding: 10px 22px; font-size: 15px;
+      padding: 11px 24px; font-size: 15px;
       cursor: pointer; font-weight: bold;
-      transition: transform 0.1s, opacity 0.2s;
+      transition: transform 0.1s;
     }
     .btn:active { transform: scale(0.95); }
     #btn-fight { background: #e53935; color: #fff; }
     #btn-reset { background: rgba(255,255,255,0.15); color: #fff; }
-    #btn-walk  { background: rgba(255,255,255,0.1);  color: #ccc; font-size: 13px; }
+    #btn-walk  { background: rgba(255,255,255,0.1); color: #ccc; font-size: 13px; }
   </style>
 </head>
 <body>
@@ -80,7 +77,7 @@
         <div class="hp-bar-bg"><div class="hp-bar" id="hp1-bar"></div></div>
       </div>
       <div class="hp-wrap">
-        <div class="hp-label">Elephant 2 🐘</div>
+        <div class="hp-label" style="text-align:right">Elephant 2 🐘</div>
         <div class="hp-bar-bg"><div class="hp-bar" id="hp2-bar"></div></div>
       </div>
     </div>
@@ -99,124 +96,100 @@
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a2e);
 
-    // Ground
+    // Ground — subtle, not too big
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(30, 30),
+      new THREE.PlaneGeometry(20, 10),
       new THREE.MeshLambertMaterial({ color: 0x2d4a1e })
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -1.5;
+    ground.position.y = -1.55;
     scene.add(ground);
 
-    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(0, 3, 10);
-    camera.lookAt(0, 0, 0);
+    // Camera — higher up, looking slightly down so ground is minimal
+    const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.position.set(0, 2.5, 7);
+    camera.lookAt(0, 0.5, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.shadowMap.enabled = true;
     container.appendChild(renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const dir = new THREE.DirectionalLight(0xffffff, 1.2);
-    dir.position.set(5, 10, 5);
-    dir.castShadow = true;
+    dir.position.set(3, 8, 5);
     scene.add(dir);
 
-    // State
-    let elephant1 = null, elephant2 = null;
     let mixer1, mixer2;
     let actions1 = {}, actions2 = {};
     let current1 = null, current2 = null;
     let hp1 = 100, hp2 = 100;
-    let fightInterval = null;
-    let fightActive = false;
+    let fightInterval = null, fightActive = false;
     let loaded = 0;
 
-    function onLoaded() {
-      loaded++;
-      if (loaded === 2) {
-        document.getElementById('loading').style.display = 'none';
-        playAnim(1, 'Loco_WalkSlow');
-        playAnim(2, 'Loco_WalkSlow');
-      }
+    function onBothLoaded() {
+      document.getElementById('loading').style.display = 'none';
+      playAnim(1, 'Loco_WalkSlow');
+      playAnim(2, 'Loco_WalkSlow');
     }
 
     function loadElephant(side) {
-      const loader = new THREE.GLTFLoader();
-      loader.load("scene.gltf",
-        (gltf) => {
-          const model = gltf.scene;
-          const box = new THREE.Box3().setFromObject(model);
-          const center = box.getCenter(new THREE.Vector3());
-          const size = box.getSize(new THREE.Vector3());
-          const scale = 2.5 / Math.max(size.x, size.y, size.z);
-          model.scale.setScalar(scale);
-          model.position.sub(center.multiplyScalar(scale));
+      new THREE.GLTFLoader().load("scene.gltf", (gltf) => {
+        const model = gltf.scene;
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const scale = 2.2 / Math.max(size.x, size.y, size.z);
+        model.scale.setScalar(scale);
+        model.position.copy(center.multiplyScalar(-scale));
 
-          if (side === 1) {
-            model.position.x = -2.5;
-            model.rotation.y = Math.PI / 2; // face right
-            elephant1 = model;
-            mixer1 = new THREE.AnimationMixer(model);
-            gltf.animations.forEach(c => actions1[c.name] = mixer1.clipAction(c));
-          } else {
-            model.position.x = 2.5;
-            model.rotation.y = -Math.PI / 2; // face left
-            elephant2 = model;
-            mixer2 = new THREE.AnimationMixer(model);
-            gltf.animations.forEach(c => actions2[c.name] = mixer2.clipAction(c));
-          }
-
-          // Tint elephant 2 slightly
-          if (side === 2) {
-            model.traverse(child => {
-              if (child.isMesh && child.material) {
-                child.material = child.material.clone();
-                child.material.color.multiplyScalar(0.75);
-              }
-            });
-          }
-
-          scene.add(model);
-          onLoaded();
-        },
-        (progress) => {
-          if (progress.total > 0) {
-            const pct = Math.round((progress.loaded / progress.total) * 100);
-            document.getElementById('loading').textContent = `Loading elephants... ${pct}% 🐘🐘`;
-          }
-        },
-        (err) => { console.error(err); }
-      );
+        if (side === 1) {
+          model.position.x = -2.2;
+          model.rotation.y = Math.PI / 2;
+          mixer1 = new THREE.AnimationMixer(model);
+          gltf.animations.forEach(c => actions1[c.name] = mixer1.clipAction(c));
+        } else {
+          model.position.x = 2.2;
+          model.rotation.y = -Math.PI / 2;
+          mixer2 = new THREE.AnimationMixer(model);
+          gltf.animations.forEach(c => actions2[c.name] = mixer2.clipAction(c));
+          // Tint elephant 2 darker
+          model.traverse(child => {
+            if (child.isMesh && child.material) {
+              child.material = child.material.clone();
+              child.material.color.multiplyScalar(0.65);
+            }
+          });
+        }
+        scene.add(model);
+        if (++loaded === 2) onBothLoaded();
+      },
+      (p) => {
+        if (p.total > 0)
+          document.getElementById('loading').textContent =
+            `Loading elephants... ${Math.round(p.loaded/p.total*100)}% 🐘🐘`;
+      });
     }
 
     loadElephant(1);
     loadElephant(2);
 
     function playAnim(side, name, loop = true) {
-      const actions = side === 1 ? actions1 : actions2;
-      const current = side === 1 ? current1 : current2;
-      const mixer  = side === 1 ? mixer1  : mixer2;
-
-      if (!actions[name]) return;
-      if (current) current.fadeOut(0.25);
-
-      const action = actions[name];
-      action.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
-      action.clampWhenFinished = !loop;
-      action.reset().fadeIn(0.25).play();
-
-      if (side === 1) current1 = action;
-      else current2 = action;
+      const acts = side === 1 ? actions1 : actions2;
+      const cur  = side === 1 ? current1  : current2;
+      if (!acts[name]) return;
+      if (cur) cur.fadeOut(0.25);
+      const a = acts[name];
+      a.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
+      a.clampWhenFinished = !loop;
+      a.reset().fadeIn(0.25).play();
+      if (side === 1) current1 = a; else current2 = a;
     }
 
-    function showStatus(text, duration = 1500) {
+    function showStatus(txt, ms = 1200) {
       const el = document.getElementById('status');
-      el.textContent = text;
-      el.style.opacity = 1;
-      setTimeout(() => el.style.opacity = 0, duration);
+      el.textContent = txt; el.style.opacity = 1;
+      setTimeout(() => el.style.opacity = 0, ms);
     }
 
     function updateHP() {
@@ -224,120 +197,93 @@
       document.getElementById('hp2-bar').style.width = Math.max(0, hp2) + '%';
     }
 
-    // Fight logic
     function startFight() {
       if (fightActive) return;
       fightActive = true;
-      hp1 = 100; hp2 = 100;
-      updateHP();
-
+      hp1 = 100; hp2 = 100; updateHP();
       showStatus('⚔️ FIGHT!', 1200);
-
-      // Both walk toward each other first
       playAnim(1, 'Loco_WalkSlow');
       playAnim(2, 'Loco_WalkSlow');
-
       setTimeout(() => {
         if (!fightActive) return;
-        runFightRound();
+        runRound();
         fightInterval = setInterval(() => {
           if (!fightActive) { clearInterval(fightInterval); return; }
-          runFightRound();
-        }, 2000);
+          if (hp1 <= 0 || hp2 <= 0) { endFight(); return; }
+          runRound();
+        }, 2200);
       }, 1000);
     }
 
-    function runFightRound() {
-      if (hp1 <= 0 || hp2 <= 0) { endFight(); return; }
-
-      // Random attacker
-      const attacker = Math.random() < 0.5 ? 1 : 2;
-      const defender = attacker === 1 ? 2 : 1;
-
-      const attacks = ['Attack_1', 'Attack_2', 'Attack_3'];
-      const atk = attacks[Math.floor(Math.random() * attacks.length)];
+    function runRound() {
+      const atk = Math.random() < 0.5 ? 1 : 2;
+      const def = atk === 1 ? 2 : 1;
+      const moves = ['Attack_1','Attack_2','Attack_3'];
+      const move = moves[Math.floor(Math.random() * 3)];
       const dmg = Math.floor(Math.random() * 20) + 10;
 
-      playAnim(attacker, atk, false);
-      setTimeout(() => playAnim(defender, 'Hit_1', false), 300);
+      playAnim(atk, move, false);
+      setTimeout(() => playAnim(def, 'Hit_1', false), 350);
       setTimeout(() => {
-        if (attacker === 1) { hp2 = Math.max(0, hp2 - dmg); showStatus(`🐘1 hits! -${dmg} HP`, 800); }
-        else                { hp1 = Math.max(0, hp1 - dmg); showStatus(`🐘2 hits! -${dmg} HP`, 800); }
+        if (atk === 1) { hp2 = Math.max(0, hp2 - dmg); showStatus(`🐘1 hits! -${dmg}`, 800); }
+        else           { hp1 = Math.max(0, hp1 - dmg); showStatus(`🐘2 hits! -${dmg}`, 800); }
         updateHP();
-
-        // Back to walk if alive
         setTimeout(() => {
           if (hp1 > 0) playAnim(1, 'Loco_WalkSlow');
           if (hp2 > 0) playAnim(2, 'Loco_WalkSlow');
-        }, 600);
-
-        if (hp1 <= 0 || hp2 <= 0) { endFight(); }
-      }, 500);
+          if (hp1 <= 0 || hp2 <= 0) endFight();
+        }, 700);
+      }, 550);
     }
 
     function endFight() {
-      fightActive = false;
-      clearInterval(fightInterval);
+      fightActive = false; clearInterval(fightInterval);
       if (hp1 <= 0) {
-        playAnim(1, 'Death', false);
-        playAnim(2, 'Roar', false);
-        showStatus('🏆 Elephant 2 Wins!', 3000);
+        playAnim(1, 'Death', false); playAnim(2, 'Roar', false);
+        showStatus('🏆 Elephant 2 Wins!', 3500);
       } else {
-        playAnim(2, 'Death', false);
-        playAnim(1, 'Roar', false);
-        showStatus('🏆 Elephant 1 Wins!', 3000);
+        playAnim(2, 'Death', false); playAnim(1, 'Roar', false);
+        showStatus('🏆 Elephant 1 Wins!', 3500);
       }
     }
 
-    function resetFight() {
-      fightActive = false;
-      clearInterval(fightInterval);
-      hp1 = 100; hp2 = 100;
-      updateHP();
-      playAnim(1, 'Stand_01');
-      playAnim(2, 'Stand_01');
+    function resetAll() {
+      fightActive = false; clearInterval(fightInterval);
+      hp1 = 100; hp2 = 100; updateHP();
       document.getElementById('status').style.opacity = 0;
+      playAnim(1, 'Stand_01'); playAnim(2, 'Stand_01');
     }
 
-    document.getElementById('btn-fight').addEventListener('click', startFight);
-    document.getElementById('btn-reset').addEventListener('click', resetFight);
-    document.getElementById('btn-walk').addEventListener('click', () => {
-      resetFight();
-      setTimeout(() => { playAnim(1, 'Loco_WalkSlow'); playAnim(2, 'Loco_WalkSlow'); }, 100);
-    });
+    document.getElementById('btn-fight').onclick = startFight;
+    document.getElementById('btn-reset').onclick = resetAll;
+    document.getElementById('btn-walk').onclick = () => {
+      resetAll();
+      setTimeout(() => { playAnim(1,'Loco_WalkSlow'); playAnim(2,'Loco_WalkSlow'); }, 100);
+    };
 
-    // Mouse/touch rotate
-    let isDragging = false, prevX = 0, prevY = 0;
-    let rotY = 0, zoom = 10;
-
-    container.addEventListener('mousedown', e => { isDragging = true; prevX = e.clientX; });
-    document.addEventListener('mouseup', () => isDragging = false);
+    // Camera orbit
+    let drag = false, prevX = 0, rotY = 0, zoom = 7;
+    container.addEventListener('mousedown', e => { drag = true; prevX = e.clientX; });
+    document.addEventListener('mouseup', () => drag = false);
     document.addEventListener('mousemove', e => {
-      if (!isDragging) return;
-      rotY += (e.clientX - prevX) * 0.4;
-      prevX = e.clientX;
-      updateCamera();
+      if (!drag) return;
+      rotY += (e.clientX - prevX) * 0.4; prevX = e.clientX; updateCam();
     });
     container.addEventListener('wheel', e => {
-      zoom = Math.max(4, Math.min(20, zoom + e.deltaY * 0.01));
-      updateCamera();
+      zoom = Math.max(4, Math.min(16, zoom + e.deltaY * 0.01)); updateCam();
     });
-    let lastTouch = null;
-    container.addEventListener('touchstart', e => { lastTouch = e.touches[0]; });
+    let lt = null;
+    container.addEventListener('touchstart', e => { lt = e.touches[0]; });
     container.addEventListener('touchmove', e => {
       e.preventDefault();
       const t = e.touches[0];
-      rotY += (t.clientX - lastTouch.clientX) * 0.4;
-      lastTouch = t;
-      updateCamera();
+      rotY += (t.clientX - lt.clientX) * 0.4; lt = t; updateCam();
     }, { passive: false });
 
-    function updateCamera() {
-      const theta = THREE.MathUtils.degToRad(rotY);
-      camera.position.x = zoom * Math.sin(theta);
-      camera.position.z = zoom * Math.cos(theta);
-      camera.position.y = 3;
-      camera.lookAt(0, 0, 0);
+    function updateCam() {
+      const th = THREE.MathUtils.degToRad(rotY);
+      camera.position.set(zoom * Math.sin(th), 2.5, zoom * Math.cos(th));
+      camera.lookAt(0, 0.5, 0);
     }
 
     window.addEventListener('resize', () => {
