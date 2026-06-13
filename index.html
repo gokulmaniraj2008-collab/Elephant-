@@ -96,7 +96,7 @@
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a2e);
-    scene.fog = new THREE.Fog(0x1a1a2e, 6, 16);
+    // fog removed — 100x100 ground plane already hides the horizon edge
 
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(100, 100),
@@ -122,8 +122,13 @@
 
     let mixer1, mixer2, actions1 = {}, actions2 = {};
     let current1 = null, current2 = null;
+    let model1 = null, model2 = null;
     let hp1 = 100, hp2 = 100;
     let fightInterval = null, fightActive = false, loaded = 0;
+
+    const START_X = 2.0;   // resting / walk distance
+    const FIGHT_X = 0.85;  // closing distance for melee range
+    let target1 = -START_X, target2 = START_X;
 
     function loadElephant(side) {
       new THREE.GLTFLoader().load("scene.gltf", (gltf) => {
@@ -135,12 +140,13 @@
         model.scale.setScalar(scale);
         model.position.copy(center.multiplyScalar(-scale));
         if (side === 1) {
-          model.position.x = -2.0;
+          model.position.x = -START_X;
           model.rotation.y = Math.PI / 2;
           mixer1 = new THREE.AnimationMixer(model);
           gltf.animations.forEach(c => actions1[c.name] = mixer1.clipAction(c));
+          model1 = model;
         } else {
-          model.position.x = 2.0;
+          model.position.x = START_X;
           model.rotation.y = -Math.PI / 2;
           mixer2 = new THREE.AnimationMixer(model);
           gltf.animations.forEach(c => actions2[c.name] = mixer2.clipAction(c));
@@ -150,6 +156,7 @@
               child.material.color.multiplyScalar(0.6);
             }
           });
+          model2 = model;
         }
         scene.add(model);
         if (++loaded === 2) {
@@ -194,8 +201,10 @@
       fightActive = true; hp1 = 100; hp2 = 100; updateHP();
       showStatus('⚔️ FIGHT!', 1200);
       playAnim(1, 'Loco_WalkSlow'); playAnim(2, 'Loco_WalkSlow');
+      target1 = -FIGHT_X; target2 = FIGHT_X; // walk toward each other
       setTimeout(() => {
         if (!fightActive) return;
+        playAnim(1, 'Stand_01'); playAnim(2, 'Stand_01');
         runRound();
         fightInterval = setInterval(() => {
           if (!fightActive || hp1 <= 0 || hp2 <= 0) { endFight(); return; }
@@ -217,8 +226,8 @@
         else           { hp1 = Math.max(0, hp1 - dmg); showStatus(`🐘2 hits! -${dmg}`, 800); }
         updateHP();
         setTimeout(() => {
-          if (hp1 > 0) playAnim(1, 'Loco_WalkSlow');
-          if (hp2 > 0) playAnim(2, 'Loco_WalkSlow');
+          if (hp1 > 0) playAnim(1, 'Stand_01');
+          if (hp2 > 0) playAnim(2, 'Stand_01');
           if (hp1 <= 0 || hp2 <= 0) endFight();
         }, 700);
       }, 550);
@@ -234,6 +243,7 @@
       fightActive = false; clearInterval(fightInterval);
       hp1 = 100; hp2 = 100; updateHP();
       document.getElementById('status').style.opacity = 0;
+      target1 = -START_X; target2 = START_X;
       playAnim(1,'Stand_01'); playAnim(2,'Stand_01');
     }
 
@@ -276,6 +286,9 @@
       const dt = clock.getDelta();
       if (mixer1) mixer1.update(dt);
       if (mixer2) mixer2.update(dt);
+      const lerpSpeed = Math.min(1, dt * 1.2);
+      if (model1) model1.position.x += (target1 - model1.position.x) * lerpSpeed;
+      if (model2) model2.position.x += (target2 - model2.position.x) * lerpSpeed;
       renderer.render(scene, camera);
     })();
   </script>
