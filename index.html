@@ -7,9 +7,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #1a1a2e; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-
     #canvas-container { flex: 1; position: relative; overflow: hidden; }
-
     #title {
       position: absolute; top: 12px; left: 50%;
       transform: translateX(-50%);
@@ -17,17 +15,14 @@
       padding: 6px 18px; border-radius: 20px; font-size: 14px;
       pointer-events: none; white-space: nowrap; z-index: 10;
     }
-
     #status {
-      position: absolute; top: 42%; left: 50%;
+      position: absolute; top: 40%; left: 50%;
       transform: translate(-50%, -50%);
       color: #fff; font-size: 30px; font-weight: bold;
       text-shadow: 0 0 20px rgba(255,100,0,0.9);
       pointer-events: none; z-index: 10;
-      opacity: 0; transition: opacity 0.3s;
-      text-align: center;
+      opacity: 0; transition: opacity 0.3s; text-align: center;
     }
-
     #hp-bars {
       position: absolute; top: 48px; left: 0; right: 0;
       display: flex; justify-content: space-between;
@@ -39,32 +34,28 @@
     .hp-bar { height: 100%; border-radius: 6px; transition: width 0.4s; }
     #hp1-bar { background: #4caf50; width: 100%; }
     #hp2-bar { background: #f44336; width: 100%; }
-    .hp-wrap:last-child .hp-label { text-align: right; }
-
     #loading {
       position: absolute; top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       color: white; font-size: 20px; text-align: center; z-index: 20;
     }
-
     #controls {
-      background: rgba(0,0,0,0.85);
-      padding: 12px;
+      background: rgba(0,0,0,0.9);
+      padding: 14px;
       display: flex;
       gap: 10px;
       justify-content: center;
       flex-shrink: 0;
+      min-height: 60px;
     }
     .btn {
       border: none; border-radius: 24px;
-      padding: 11px 24px; font-size: 15px;
+      padding: 12px 26px; font-size: 15px;
       cursor: pointer; font-weight: bold;
-      transition: transform 0.1s;
     }
-    .btn:active { transform: scale(0.95); }
     #btn-fight { background: #e53935; color: #fff; }
-    #btn-reset { background: rgba(255,255,255,0.15); color: #fff; }
-    #btn-walk  { background: rgba(255,255,255,0.1); color: #ccc; font-size: 13px; }
+    #btn-reset { background: rgba(255,255,255,0.2); color: #fff; }
+    #btn-walk  { background: rgba(255,255,255,0.1); color: #ccc; }
   </style>
 </head>
 <body>
@@ -96,19 +87,19 @@
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a2e);
 
-    // Ground — subtle, not too big
+    // Small ground patch
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(20, 10),
+      new THREE.PlaneGeometry(12, 6),
       new THREE.MeshLambertMaterial({ color: 0x2d4a1e })
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -1.55;
     scene.add(ground);
 
-    // Camera — higher up, looking slightly down so ground is minimal
+    // Camera facing FRONT — elephants face each other on X axis, camera on Z
     const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(0, 2.5, 7);
-    camera.lookAt(0, 0.5, 0);
+    camera.position.set(0, 1.2, 8);
+    camera.lookAt(0, 0.3, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
@@ -139,35 +130,33 @@
         const box = new THREE.Box3().setFromObject(model);
         const center = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
-        const scale = 2.2 / Math.max(size.x, size.y, size.z);
+        const scale = 2.0 / Math.max(size.x, size.y, size.z);
         model.scale.setScalar(scale);
         model.position.copy(center.multiplyScalar(-scale));
 
         if (side === 1) {
-          model.position.x = -2.2;
-          model.rotation.y = Math.PI / 2;
+          model.position.x = -2.0;
+          model.rotation.y = Math.PI / 2;  // face right (toward elephant 2)
           mixer1 = new THREE.AnimationMixer(model);
           gltf.animations.forEach(c => actions1[c.name] = mixer1.clipAction(c));
         } else {
-          model.position.x = 2.2;
-          model.rotation.y = -Math.PI / 2;
+          model.position.x = 2.0;
+          model.rotation.y = -Math.PI / 2; // face left (toward elephant 1)
           mixer2 = new THREE.AnimationMixer(model);
           gltf.animations.forEach(c => actions2[c.name] = mixer2.clipAction(c));
-          // Tint elephant 2 darker
           model.traverse(child => {
             if (child.isMesh && child.material) {
               child.material = child.material.clone();
-              child.material.color.multiplyScalar(0.65);
+              child.material.color.multiplyScalar(0.6);
             }
           });
         }
         scene.add(model);
         if (++loaded === 2) onBothLoaded();
-      },
-      (p) => {
+      }, (p) => {
         if (p.total > 0)
           document.getElementById('loading').textContent =
-            `Loading elephants... ${Math.round(p.loaded/p.total*100)}% 🐘🐘`;
+            `Loading... ${Math.round(p.loaded/p.total*100)}% 🐘🐘`;
       });
     }
 
@@ -176,7 +165,7 @@
 
     function playAnim(side, name, loop = true) {
       const acts = side === 1 ? actions1 : actions2;
-      const cur  = side === 1 ? current1  : current2;
+      const cur  = side === 1 ? current1 : current2;
       if (!acts[name]) return;
       if (cur) cur.fadeOut(0.25);
       const a = acts[name];
@@ -208,8 +197,7 @@
         if (!fightActive) return;
         runRound();
         fightInterval = setInterval(() => {
-          if (!fightActive) { clearInterval(fightInterval); return; }
-          if (hp1 <= 0 || hp2 <= 0) { endFight(); return; }
+          if (!fightActive || hp1 <= 0 || hp2 <= 0) { endFight(); return; }
           runRound();
         }, 2200);
       }, 1000);
@@ -221,7 +209,6 @@
       const moves = ['Attack_1','Attack_2','Attack_3'];
       const move = moves[Math.floor(Math.random() * 3)];
       const dmg = Math.floor(Math.random() * 20) + 10;
-
       playAnim(atk, move, false);
       setTimeout(() => playAnim(def, 'Hit_1', false), 350);
       setTimeout(() => {
@@ -261,29 +248,30 @@
       setTimeout(() => { playAnim(1,'Loco_WalkSlow'); playAnim(2,'Loco_WalkSlow'); }, 100);
     };
 
-    // Camera orbit
-    let drag = false, prevX = 0, rotY = 0, zoom = 7;
+    // Touch drag to rotate — limited to ±60 degrees so buttons stay visible
+    let drag = false, prevX = 0, rotY = 0;
     container.addEventListener('mousedown', e => { drag = true; prevX = e.clientX; });
     document.addEventListener('mouseup', () => drag = false);
     document.addEventListener('mousemove', e => {
       if (!drag) return;
-      rotY += (e.clientX - prevX) * 0.4; prevX = e.clientX; updateCam();
-    });
-    container.addEventListener('wheel', e => {
-      zoom = Math.max(4, Math.min(16, zoom + e.deltaY * 0.01)); updateCam();
+      rotY += (e.clientX - prevX) * 0.4;
+      rotY = Math.max(-60, Math.min(60, rotY));
+      prevX = e.clientX; updateCam();
     });
     let lt = null;
     container.addEventListener('touchstart', e => { lt = e.touches[0]; });
     container.addEventListener('touchmove', e => {
       e.preventDefault();
       const t = e.touches[0];
-      rotY += (t.clientX - lt.clientX) * 0.4; lt = t; updateCam();
+      rotY += (t.clientX - lt.clientX) * 0.4;
+      rotY = Math.max(-60, Math.min(60, rotY));
+      lt = t; updateCam();
     }, { passive: false });
 
     function updateCam() {
       const th = THREE.MathUtils.degToRad(rotY);
-      camera.position.set(zoom * Math.sin(th), 2.5, zoom * Math.cos(th));
-      camera.lookAt(0, 0.5, 0);
+      camera.position.set(8 * Math.sin(th), 1.2, 8 * Math.cos(th));
+      camera.lookAt(0, 0.3, 0);
     }
 
     window.addEventListener('resize', () => {
