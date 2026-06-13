@@ -35,7 +35,7 @@
 
     #move-buttons {
       position: fixed; bottom: 70px; left: 0; right: 0;
-      display: none; gap: 8px; justify-content: center;
+      display: none; gap: 8px; justify-content: center; flex-wrap: wrap;
       padding: 8px 6px; background: rgba(0,0,0,0.55);
       z-index: 998;
     }
@@ -96,6 +96,7 @@
   </div>
   <div id="status"></div>
   <div id="move-buttons">
+    <button class="move-btn" id="btn-attack">⚔️ Attack</button>
     <button class="move-btn" id="btn-head">🐘 Head Attack</button>
     <button class="move-btn" id="btn-hand">🐘 Trunk Attack</button>
     <button class="move-btn" id="btn-leg">🐘 Leg Attack</button>
@@ -249,13 +250,21 @@
     function playerAttack(moveKey) {
       if (!fightActive || roundBusy || hp1 <= 0 || hp2 <= 0) return;
       roundBusy = true; setMoveButtonsEnabled(false);
-      const move = MOVES[moveKey];
+      let move, label;
+      if (moveKey === 'random') {
+        const keys = Object.keys(MOVES);
+        move = MOVES[keys[Math.floor(Math.random() * keys.length)]];
+        label = '🐘1 ⚔️ Attack';
+      } else {
+        move = MOVES[moveKey];
+        label = move.label;
+      }
       const dmg = Math.floor(Math.random() * (move.max - move.min + 1)) + move.min;
       playAnim(1, move.anim, false);
       setTimeout(() => playAnim(2, 'Hit_1', false), 350);
       setTimeout(() => {
         hp2 = Math.max(0, hp2 - dmg); updateHP();
-        showStatus(`${move.label}! -${dmg}`, 800);
+        showStatus(`${label}! -${dmg}`, 800);
         setTimeout(() => {
           if (hp2 <= 0) { endFight(); return; }
           playAnim(1, 'Stand_01');
@@ -301,6 +310,7 @@
     document.getElementById('btn-fight').onclick = startFight;
     document.getElementById('btn-reset').onclick = resetAll;
     document.getElementById('btn-walk').onclick = () => { resetAll(); setTimeout(() => { playAnim(1,'Loco_WalkSlow'); playAnim(2,'Loco_WalkSlow'); }, 100); };
+    document.getElementById('btn-attack').onclick = () => playerAttack('random');
     document.getElementById('btn-head').onclick = () => playerAttack('head');
     document.getElementById('btn-hand').onclick = () => playerAttack('hand');
     document.getElementById('btn-leg').onclick  = () => playerAttack('leg');
