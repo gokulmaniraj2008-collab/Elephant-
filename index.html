@@ -7,6 +7,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #1a1a2e; overflow: hidden; font-family: sans-serif; }
+
     #info {
       position: absolute; top: 16px; left: 50%;
       transform: translateX(-50%);
@@ -26,20 +27,49 @@
       color: #ff6b6b; font-size: 16px; text-align: center;
       background: rgba(0,0,0,0.7); padding: 20px; border-radius: 10px;
     }
+
+    /* Animation buttons panel */
+    #controls {
+      display: none;
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      max-width: 95vw;
+      padding: 10px;
+    }
+    .anim-btn {
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 20px;
+      padding: 7px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+    .anim-btn:hover { background: rgba(255,255,255,0.25); }
+    .anim-btn.active {
+      background: #4a90e2;
+      border-color: #4a90e2;
+    }
   </style>
 </head>
 <body>
   <div id="loading">Loading elephant... 🐘</div>
   <div id="error"></div>
   <div id="info">🖱️ Drag to rotate · Scroll to zoom</div>
+  <div id="controls"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
   <script>
-    // Load from same folder — no raw.githubusercontent.com
-    const MODEL = "scene.gltf";
-
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a2e);
 
@@ -57,11 +87,14 @@
     dir.position.set(5, 10, 7);
     scene.add(dir);
 
+    let mixer, actions = {}, currentAction = null;
+
     const loader = new THREE.GLTFLoader();
     loader.load(
-      MODEL,
+      "scene.gltf",
       (gltf) => {
         document.getElementById('loading').style.display = 'none';
+
         const model = gltf.scene;
         const box = new THREE.Box3().setFromObject(model);
         const center = box.getCenter(new THREE.Vector3());
@@ -71,12 +104,32 @@
         model.position.sub(center.multiplyScalar(scale));
         scene.add(model);
 
-        let mixer;
         if (gltf.animations && gltf.animations.length > 0) {
           mixer = new THREE.AnimationMixer(model);
-          gltf.animations.forEach(clip => mixer.clipAction(clip).play());
-          document.getElementById('info').textContent =
-            `🐘 ${gltf.animations.length} animation(s) · Drag to rotate · Scroll to zoom`;
+
+          // Create action for each animation
+          gltf.animations.forEach(clip => {
+            actions[clip.name] = mixer.clipAction(clip);
+          });
+
+          // Build buttons
+          const panel = document.getElementById('controls');
+          panel.style.display = 'flex';
+
+          gltf.animations.forEach((clip, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'anim-btn';
+            btn.textContent = clip.name || `Anim ${i+1}`;
+            btn.dataset.name = clip.name;
+            btn.addEventListener('click', () => playAnimation(clip.name, btn));
+            panel.appendChild(btn);
+          });
+
+          // Play first animation by default
+          const firstName = gltf.animations[0].name;
+          playAnimation(firstName, panel.querySelector('.anim-btn'));
+
+          document.getElementById('info').textContent = '🐘 Tap a button to switch animation · Drag to rotate';
         }
 
         const clock = new THREE.Clock();
@@ -96,10 +149,25 @@
         document.getElementById('loading').style.display = 'none';
         const err = document.getElementById('error');
         err.style.display = 'block';
-        err.innerHTML = '❌ Could not load model.<br>Check browser console for details.';
+        err.innerHTML = '❌ Could not load model.';
         console.error(error);
       }
     );
+
+    function playAnimation(name, btn) {
+      // Stop current
+      if (currentAction) {
+        currentAction.fadeOut(0.3);
+      }
+      // Play new
+      const action = actions[name];
+      action.reset().fadeIn(0.3).play();
+      currentAction = action;
+
+      // Update button styles
+      document.querySelectorAll('.anim-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+    }
 
     // Mouse controls
     let isDragging = false, prevX = 0, prevY = 0;
@@ -123,6 +191,7 @@
     let lastTouch = null;
     document.addEventListener('touchstart', e => { lastTouch = e.touches[0]; });
     document.addEventListener('touchmove', e => {
+      if (e.target.classList.contains('anim-btn')) return;
       e.preventDefault();
       const t = e.touches[0];
       rotY += (t.clientX - lastTouch.clientX) * 0.5;
