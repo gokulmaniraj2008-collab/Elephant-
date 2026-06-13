@@ -33,6 +33,20 @@
     #btn-reset { background: #444; color: #fff; }
     #btn-walk  { background: #333; color: #ccc; }
 
+    #move-buttons {
+      position: fixed; bottom: 70px; left: 0; right: 0;
+      display: none; gap: 8px; justify-content: center;
+      padding: 8px 6px; background: rgba(0,0,0,0.55);
+      z-index: 998;
+    }
+    #move-buttons.active { display: flex; }
+    .move-btn {
+      border: none; border-radius: 18px;
+      padding: 10px 14px; font-size: 12px; font-weight: bold;
+      background: #2a2a40; color: #fff; cursor: pointer; flex: 1; max-width: 140px;
+    }
+    .move-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
     #title {
       position: fixed; top: 12px; left: 50%;
       transform: translateX(-50%);
@@ -81,6 +95,11 @@
     </div>
   </div>
   <div id="status"></div>
+  <div id="move-buttons">
+    <button class="move-btn" id="btn-head">🐘 Head Attack</button>
+    <button class="move-btn" id="btn-hand">🐘 Trunk Attack</button>
+    <button class="move-btn" id="btn-leg">🐘 Leg Attack</button>
+  </div>
   <div id="controls">
     <button class="btn" id="btn-walk">🚶 Walk</button>
     <button class="btn" id="btn-fight">⚔️ FIGHT!</button>
@@ -129,6 +148,14 @@
     const START_X = 2.0;   // resting / walk distance
     const FIGHT_X = 1.15;  // closing distance for melee range (avoids body overlap)
     let target1 = -START_X, target2 = START_X;
+    let roundBusy = false;
+
+    // 3 selectable attack moves. Swap 'anim' values if your gltf uses different clip names.
+    const MOVES = {
+      head: { label: '🐘 Head Attack',  anim: 'Attack_1', min: 18, max: 26 }, // heavy, slow
+      hand: { label: '🐘 Trunk Attack', anim: 'Attack_2', min: 12, max: 20 }, // medium
+      leg:  { label: '🐘 Leg Attack',   anim: 'Attack_3', min: 8,  max: 14 }  // light, fast
+    };
 
     function loadElephant(side) {
       new THREE.GLTFLoader().load("scene.gltf", (gltf) => {
@@ -196,6 +223,14 @@
       document.getElementById('hp2-bar').style.width = Math.max(0, hp2) + '%';
     }
 
+    function setMoveButtonsEnabled(enabled) {
+      document.querySelectorAll('.move-btn').forEach(b => b.disabled = !enabled);
+    }
+
+    function showMoveButtons(show) {
+      document.getElementById('move-buttons').classList.toggle('active', show);
+    }
+
     function startFight() {
       if (fightActive) return;
       fightActive = true; hp1 = 100; hp2 = 100; updateHP();
@@ -205,42 +240,58 @@
       setTimeout(() => {
         if (!fightActive) return;
         playAnim(1, 'Stand_01'); playAnim(2, 'Stand_01');
-        runRound();
-        fightInterval = setInterval(() => {
-          if (!fightActive || hp1 <= 0 || hp2 <= 0) { endFight(); return; }
-          runRound();
-        }, 2200);
+        roundBusy = false;
+        showMoveButtons(true);
+        setMoveButtonsEnabled(true);
       }, 1000);
     }
 
-    function runRound() {
-      const atk = Math.random() < 0.5 ? 1 : 2;
-      const def = atk === 1 ? 2 : 1;
-      const moves = ['Attack_1','Attack_2','Attack_3'];
-      const move = moves[Math.floor(Math.random() * 3)];
-      const dmg = Math.floor(Math.random() * 20) + 10;
-      playAnim(atk, move, false);
-      setTimeout(() => playAnim(def, 'Hit_1', false), 350);
+    function playerAttack(moveKey) {
+      if (!fightActive || roundBusy || hp1 <= 0 || hp2 <= 0) return;
+      roundBusy = true; setMoveButtonsEnabled(false);
+      const move = MOVES[moveKey];
+      const dmg = Math.floor(Math.random() * (move.max - move.min + 1)) + move.min;
+      playAnim(1, move.anim, false);
+      setTimeout(() => playAnim(2, 'Hit_1', false), 350);
       setTimeout(() => {
-        if (atk === 1) { hp2 = Math.max(0, hp2 - dmg); showStatus(`🐘1 hits! -${dmg}`, 800); }
-        else           { hp1 = Math.max(0, hp1 - dmg); showStatus(`🐘2 hits! -${dmg}`, 800); }
-        updateHP();
+        hp2 = Math.max(0, hp2 - dmg); updateHP();
+        showStatus(`${move.label}! -${dmg}`, 800);
         setTimeout(() => {
-          if (hp1 > 0) playAnim(1, 'Stand_01');
-          if (hp2 > 0) playAnim(2, 'Stand_01');
-          if (hp1 <= 0 || hp2 <= 0) endFight();
+          if (hp2 <= 0) { endFight(); return; }
+          playAnim(1, 'Stand_01');
+          aiCounter();
+        }, 700);
+      }, 550);
+    }
+
+    function aiCounter() {
+      const keys = Object.keys(MOVES);
+      const moveKey = keys[Math.floor(Math.random() * keys.length)];
+      const move = MOVES[moveKey];
+      const dmg = Math.floor(Math.random() * (move.max - move.min + 1)) + move.min;
+      playAnim(2, move.anim, false);
+      setTimeout(() => playAnim(1, 'Hit_1', false), 350);
+      setTimeout(() => {
+        hp1 = Math.max(0, hp1 - dmg); updateHP();
+        showStatus(`🐘2 ${move.label}! -${dmg}`, 800);
+        setTimeout(() => {
+          if (hp1 <= 0) { endFight(); return; }
+          playAnim(2, 'Stand_01');
+          roundBusy = false; setMoveButtonsEnabled(true);
         }, 700);
       }, 550);
     }
 
     function endFight() {
       fightActive = false; clearInterval(fightInterval);
+      roundBusy = true; setMoveButtonsEnabled(false); showMoveButtons(false);
       if (hp1 <= 0) { playAnim(1,'Death',false); playAnim(2,'Roar',false); showStatus('🏆 Elephant 2 Wins!', 3500); }
       else          { playAnim(2,'Death',false); playAnim(1,'Roar',false); showStatus('🏆 Elephant 1 Wins!', 3500); }
     }
 
     function resetAll() {
       fightActive = false; clearInterval(fightInterval);
+      roundBusy = true; setMoveButtonsEnabled(false); showMoveButtons(false);
       hp1 = 100; hp2 = 100; updateHP();
       document.getElementById('status').style.opacity = 0;
       target1 = -START_X; target2 = START_X;
@@ -250,6 +301,9 @@
     document.getElementById('btn-fight').onclick = startFight;
     document.getElementById('btn-reset').onclick = resetAll;
     document.getElementById('btn-walk').onclick = () => { resetAll(); setTimeout(() => { playAnim(1,'Loco_WalkSlow'); playAnim(2,'Loco_WalkSlow'); }, 100); };
+    document.getElementById('btn-head').onclick = () => playerAttack('head');
+    document.getElementById('btn-hand').onclick = () => playerAttack('hand');
+    document.getElementById('btn-leg').onclick  = () => playerAttack('leg');
 
     let drag = false, prevX = 0, rotY = 0;
     container.addEventListener('mousedown', e => { drag = true; prevX = e.clientX; });
