@@ -37,47 +37,40 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
   <script>
-    const BASE = "https://raw.githubusercontent.com/gokulmaniraj2008/Elephant-/main/";
+    // Load from same folder — no raw.githubusercontent.com
+    const MODEL = "scene.gltf";
 
-    // Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a2e);
 
-    // Camera
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 2, 6);
 
-    // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
     document.body.appendChild(renderer.domElement);
 
-    // Lights
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const dir = new THREE.DirectionalLight(0xffffff, 1.2);
     dir.position.set(5, 10, 7);
     scene.add(dir);
 
-    // Load model
     const loader = new THREE.GLTFLoader();
     loader.load(
-      BASE + "scene.gltf",
+      MODEL,
       (gltf) => {
         document.getElementById('loading').style.display = 'none';
-
         const model = gltf.scene;
         const box = new THREE.Box3().setFromObject(model);
         const center = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
         const scale = 3 / Math.max(size.x, size.y, size.z);
-
         model.scale.setScalar(scale);
         model.position.sub(center.multiplyScalar(scale));
         scene.add(model);
 
-        // Animations
         let mixer;
         if (gltf.animations && gltf.animations.length > 0) {
           mixer = new THREE.AnimationMixer(model);
@@ -87,12 +80,11 @@
         }
 
         const clock = new THREE.Clock();
-        function animate() {
+        (function animate() {
           requestAnimationFrame(animate);
           if (mixer) mixer.update(clock.getDelta());
           renderer.render(scene, camera);
-        }
-        animate();
+        })();
       },
       (progress) => {
         if (progress.total > 0) {
@@ -104,14 +96,13 @@
         document.getElementById('loading').style.display = 'none';
         const err = document.getElementById('error');
         err.style.display = 'block';
-        err.innerHTML = '❌ Could not load model.<br>Make sure scene.gltf, scene.bin<br>and textures/ are uploaded to GitHub.';
+        err.innerHTML = '❌ Could not load model.<br>Check browser console for details.';
         console.error(error);
       }
     );
 
     // Mouse controls
-    let isDragging = false;
-    let prevX = 0, prevY = 0;
+    let isDragging = false, prevX = 0, prevY = 0;
     let rotX = 0, rotY = 0, zoom = 6;
 
     document.addEventListener('mousedown', e => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
@@ -128,7 +119,7 @@
       updateCamera();
     });
 
-    // Touch controls (mobile)
+    // Touch controls
     let lastTouch = null;
     document.addEventListener('touchstart', e => { lastTouch = e.touches[0]; });
     document.addEventListener('touchmove', e => {
@@ -155,7 +146,6 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // Basic loop while loading
     (function loop() { requestAnimationFrame(loop); renderer.render(scene, camera); })();
   </script>
 </body>
